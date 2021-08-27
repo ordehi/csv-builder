@@ -32,15 +32,7 @@ const listenToInputButDontCrash = debounce((fields) =>
   downloadBtnOnOff(fields)
 );
 
-const capitalize = (str) => {
-  if (str.includes(' ')) {
-    return str
-      .split(' ')
-      .map((i) => i.charAt(0).toUpperCase() + i.slice(1))
-      .join(' ');
-  }
-  return str.charAt(0).toUpperCase() + str.slice(1);
-};
+const capitalize = (str) => str.charAt(0).toUpperCase() + str.slice(1);
 
 const randomHex = () => Math.floor(Math.random() * 16777215).toString(16);
 
@@ -64,16 +56,29 @@ const parseItem = function (item) {
   return (parsed = {
     minus: (item.match(/\-/g) || []).length,
     plus: (item.match(/\+/g) || []).length,
-    capitalized: capitalize(item.replace(/\-|\+|\*/g, '').split('#')[0]),
+    clean: item
+      .replace(/\-|\+|\*/g, '')
+      .split('#')[0]
+      .trim(),
     tag:
       item.replace(/\-|\+|\*/g, '').split('#')[1] ||
-      item.replace(/\-|\+|\*/g, '').replace(/\s/g, '_'),
+      item
+        .replace(/\-|\+|\*/g, '')
+        .trim()
+        .replace(/\s/g, '_'),
     isDefault: item.includes('*'),
   });
 };
 
 const header = ['value', 'tag', 'default'];
-const upperCases = [
+
+//todo: implement acronym uppercase
+function uppercaseAcronymMatchingAgainstArray(input, array, callback) {
+  const regex = new RegExp(`^${input}`, 'i');
+  const matches = array.filter((el) => regex.test(el));
+  callback(matches);
+}
+const acronyms = [
   'css',
   'csp',
   'cors',
@@ -85,7 +90,22 @@ const upperCases = [
   'svg',
 ];
 
-const stringToCSV = (inputStr) => {
+const capitalizeWithAcronyms = (item) => {
+  let splitItem = item.split(' ');
+  if (typeof splitItem === 'string') {
+    return acronyms.indexOf(splitItem.toLowerCase()) !== -1
+      ? splitItem.toUpperCase()
+      : item;
+  } else {
+    return splitItem
+      .map((el) =>
+        acronyms.indexOf(el) !== -1 ? el.toUpperCase() : capitalize(el)
+      )
+      .join(' ');
+  }
+};
+
+const stringToCSV = async (inputStr) => {
   const arrFromInput = inputStr.split(/\,|\n|\r/);
   const fieldLevels = [];
   const csv = [];
@@ -97,13 +117,15 @@ const stringToCSV = (inputStr) => {
       : 'ticket_fields_' + randomAppendix + '.csv';
   csv.push(header.join(','));
 
-  arrFromInput.forEach((el, idx, arr) => {
-    if (!el.match(/[^\-]/g) && el.includes('-')) {
+  await arrFromInput.forEach((el, idx, arr) => {
+    if (!el.match(/[^\-|\s]/g) && el.includes('-')) {
       for (let i = 0; i < el.match(/\-/g).length; i++) {
         fieldLevels.pop();
       }
     } else {
-      let { minus, plus, capitalized, tag, isDefault } = parseItem(el);
+      let { minus, plus, clean, tag, isDefault } = parseItem(el);
+      let capitalized = capitalizeWithAcronyms(clean);
+
       if (minus > 0) {
         for (let i = 0; i < minus; i++) {
           fieldLevels.pop();
